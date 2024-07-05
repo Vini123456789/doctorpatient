@@ -1,0 +1,9 @@
+@Repository
+public interface DoctorRepository extends JpaRepository<Doctor, Long> {
+    List<Doctor> findByCityAndSpeciality(String city, Speciality speciality);
+}
+
+@Repository
+public interface PatientRepository extends JpaRepository<Patient, Long> {
+    // Additional custom queries if needed
+}
