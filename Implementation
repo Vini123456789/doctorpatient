@@ -1,0 +1,33 @@
+#Implement Services and Business Logic
+Create services ('DoctorService' and 'PatientService') to handle CRUD operations and business logic such as suggesting doctors based on patient symptoms.
+
+#Implement Controller APIs
+Define REST endpoints using Spring MVC annotations ('@RestController', '@GetMapping', '@PostMapping', etc.) to expose CRUD operations and the doctor suggestion logic.
+
+#Implement Doctor Suggestion API
+@RestController
+@RequestMapping("/api")
+public class DoctorController {
+    
+    @Autowired
+    private DoctorService doctorService;
+
+    @GetMapping("/suggest-doctors")
+    public ResponseEntity<?> suggestDoctorsForPatient(@RequestParam Long patientId) {
+        try {
+            Patient patient = patientService.findById(patientId);
+            if (patient == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            List<Doctor> doctors = doctorService.findDoctorsByPatientSymptom(patient);
+            if (doctors.isEmpty()) {
+                return ResponseEntity.ok("There isn’t any doctor present at your location for your symptom");
+            }
+
+            return ResponseEntity.ok(doctors);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+}
