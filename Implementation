@@ -1,33 +1,127 @@
 #Implement Services and Business Logic
 Create services ('DoctorService' and 'PatientService') to handle CRUD operations and business logic such as suggesting doctors based on patient symptoms.
 
+@Service
+public class DoctorService {
+
+    @Autowired
+    private DoctorRepository doctorRepository;
+
+    public Doctor addDoctor(Doctor doctor) {
+        return doctorRepository.save(doctor);
+    }
+
+    public void deleteDoctor(Long id) {
+        doctorRepository.deleteById(id);
+    }
+
+    public List<Doctor> findDoctorsByCityAndSpeciality(String city, Speciality speciality) {
+        return doctorRepository.findByCityAndSpeciality(city, speciality);
+    }
+}
+
+@Service
+public class PatientService {
+
+    @Autowired
+    private PatientRepository patientRepository;
+
+    @Autowired
+    private DoctorRepository doctorRepository;
+
+    public Patient addPatient(Patient patient) {
+        return patientRepository.save(patient);
+    }
+
+    public void deletePatient(Long id) {
+        patientRepository.deleteById(id);
+    }
+
+    public List<Doctor> suggestDoctorsForPatient(Long patientId) {
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new RuntimeException("Patient not found with id: " + patientId));
+
+        Speciality patientSpeciality = getSpecialityForSymptom(patient.getSymptom());
+        if (patientSpeciality == null) {
+            throw new RuntimeException("Invalid symptom provided");
+        }
+
+        List<Doctor> doctors = doctorRepository.findByCityAndSpeciality(patient.getCity(), patientSpeciality);
+        if (doctors.isEmpty()) {
+            throw new RuntimeException("There isn’t any doctor present at your location for your symptom");
+        }
+
+        return doctors;
+    }
+
+    private Speciality getSpecialityForSymptom(Symptom symptom) {
+        switch (symptom) {
+            case ARTHRITIS:
+            case BACK_PAIN:
+            case TISSUE_INJURIES:
+                return Speciality.ORTHOPAEDIC;
+            case DYSMENORRHEA:
+                return Speciality.GYNECOLOGY;
+            case SKIN_INFECTION:
+            case SKIN_BURN:
+                return Speciality.DERMATOLOGY;
+            case EAR_PAIN:
+                return Speciality.ENT;
+            default:
+                return null;
+        }
+    }
+}
+
 #Implement Controller APIs
 Define REST endpoints using Spring MVC annotations ('@RestController', '@GetMapping', '@PostMapping', etc.) to expose CRUD operations and the doctor suggestion logic.
 
-#Implement Doctor Suggestion API
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/doctors")
 public class DoctorController {
-    
+
     @Autowired
     private DoctorService doctorService;
 
-    @GetMapping("/suggest-doctors")
-    public ResponseEntity<?> suggestDoctorsForPatient(@RequestParam Long patientId) {
+    @PostMapping("/add")
+    public ResponseEntity<?> addDoctor(@RequestBody Doctor doctor) {
+        Doctor savedDoctor = doctorService.addDoctor(doctor);
+        return ResponseEntity.ok(savedDoctor);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteDoctor(@PathVariable Long id) {
+        doctorService.deleteDoctor(id);
+        return ResponseEntity.ok("Doctor deleted successfully");
+    }
+}
+
+@RestController
+@RequestMapping("/api/patients")
+public class PatientController {
+
+    @Autowired
+    private PatientService patientService;
+
+    @PostMapping("/add")
+    public ResponseEntity<?> addPatient(@RequestBody Patient patient) {
+        Patient savedPatient = patientService.addPatient(patient);
+        return ResponseEntity.ok(savedPatient);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deletePatient(@PathVariable Long id) {
+        patientService.deletePatient(id);
+        return ResponseEntity.ok("Patient deleted successfully");
+    }
+
+    @GetMapping("/{patientId}/suggest-doctors")
+    public ResponseEntity<?> suggestDoctorsForPatient(@PathVariable Long patientId) {
         try {
-            Patient patient = patientService.findById(patientId);
-            if (patient == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            List<Doctor> doctors = doctorService.findDoctorsByPatientSymptom(patient);
-            if (doctors.isEmpty()) {
-                return ResponseEntity.ok("There isn’t any doctor present at your location for your symptom");
-            }
-
-            return ResponseEntity.ok(doctors);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            List<Doctor> suggestedDoctors = patientService.suggestDoctorsForPatient(patientId);
+            return ResponseEntity.ok(suggestedDoctors);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
 }
